@@ -3033,25 +3033,42 @@ ${state.settings.business || ''}`;
     const file = ev.target.files && ev.target.files[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { toast('Logo too big — max 5MB'); ev.target.value = ''; return; }
+
+    let dataUrl;
     try {
-      const dataUrl = await resizeImageToDataUrl(file, 400);
-      state.settings.logo = dataUrl;
-      renderLogoPreview();
+      dataUrl = await resizeImageToDataUrl(file, 400);
+    } catch (err) {
+      console.error('logo decode failed', err);
+      toast('Could not read image — try a PNG or JPG');
+      ev.target.value = '';
+      return;
+    }
+
+    const prevLogo = state.settings.logo;
+    state.settings.logo = dataUrl;
+    renderLogoPreview();
+    ev.target.value = '';
+
+    try {
       await persistSettings();
       toast('Logo saved');
-      updatePreview();
-    } catch (err) {
-      console.error(err);
-      toast('Could not load logo');
-    } finally {
-      ev.target.value = '';
+    } catch {
+      // persistSettings already toasts the real Supabase error; roll back preview
+      state.settings.logo = prevLogo;
+      renderLogoPreview();
     }
   }
   async function removeLogo() {
+    const prevLogo = state.settings.logo;
     state.settings.logo = '';
     renderLogoPreview();
-    try { await persistSettings(); toast('Logo removed'); updatePreview(); }
-    catch {}
+    try {
+      await persistSettings();
+      toast('Logo removed');
+    } catch {
+      state.settings.logo = prevLogo;
+      renderLogoPreview();
+    }
   }
   function resizeImageToDataUrl(file, maxDim) {
     return new Promise((resolve, reject) => {

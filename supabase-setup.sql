@@ -77,6 +77,7 @@ ALTER TABLE public.docs ADD COLUMN IF NOT EXISTS client_name       text;
 ALTER TABLE public.docs ADD COLUMN IF NOT EXISTS client_email      text;
 ALTER TABLE public.docs ADD COLUMN IF NOT EXISTS tax_label         text DEFAULT 'VAT';
 ALTER TABLE public.docs ADD COLUMN IF NOT EXISTS linked_invoice_id uuid REFERENCES public.docs(id) ON DELETE SET NULL;
+ALTER TABLE public.docs ADD COLUMN IF NOT EXISTS hide_item_pricing boolean DEFAULT false;
 CREATE INDEX IF NOT EXISTS docs_user_id_idx   ON public.docs(user_id);
 CREATE INDEX IF NOT EXISTS docs_client_id_idx ON public.docs(client_id);
 CREATE INDEX IF NOT EXISTS docs_public_id_idx ON public.docs(public_id) WHERE public_id IS NOT NULL;
@@ -238,12 +239,29 @@ RETURNS TABLE (
   currency           text,
   tax_rate           numeric,
   tax_label          text,
+  subtotal           numeric,
+  tax                numeric,
+  total              numeric,
+  hide_item_pricing  boolean,
   business_snapshot  jsonb
 )
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   SELECT id, public_id, type, number, status, project, client_name, client_email,
          issue_date, due_date, accepted_date, declined_date, paid_date,
-         lines, notes, currency, tax_rate, tax_label, business_snapshot
+         CASE
+           WHEN COALESCE(hide_item_pricing, false) THEN
+             COALESCE((SELECT jsonb_agg(jsonb_build_object('desc', elem->>'desc'))
+                       FROM jsonb_array_elements(lines) AS elem), '[]'::jsonb)
+           ELSE
+             COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                         'desc', elem->>'desc',
+                         'qty',  elem->'qty',
+                         'rate', elem->'rate'))
+                       FROM jsonb_array_elements(lines) AS elem), '[]'::jsonb)
+         END AS lines,
+         notes, currency, tax_rate, tax_label,
+         subtotal, tax, total, COALESCE(hide_item_pricing, false) AS hide_item_pricing,
+         business_snapshot
   FROM public.docs
   WHERE public_id = p_public_id
     AND status <> 'draft'

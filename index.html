@@ -272,6 +272,16 @@
 
   .form-card { background: white; border: 1px solid var(--ink); padding: 28px; }
   .field-group { margin-bottom: 22px; }
+  .toggle-field { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; background: var(--paper); border: 1px solid var(--rule); margin-bottom: 22px; cursor: pointer; }
+  .toggle-field:hover { border-color: var(--ink); }
+  .toggle-field .toggle-text { flex: 1; }
+  .toggle-field .toggle-text strong { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; display: block; margin-bottom: 3px; }
+  .toggle-field .toggle-text span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+  .toggle-switch { position: relative; width: 42px; height: 24px; background: var(--rule); border-radius: 999px; flex-shrink: 0; transition: background 0.2s; }
+  .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle-field input:checked + .toggle-switch { background: var(--ink); }
+  .toggle-field input:checked + .toggle-switch::after { transform: translateX(18px); }
+  .toggle-field input { position: absolute; opacity: 0; pointer-events: none; }
   .field-label { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink); margin-bottom: 7px; display: block; font-weight: 700; }
   .field-input, .field-textarea, .field-select {
     width: 100%; padding: 11px 13px;
@@ -1014,6 +1024,15 @@
         <div class="total-row profit"><span>Gross profit (est.)</span><span id="t-profit">£0</span></div>
       </div>
 
+      <label class="toggle-field" style="margin-top: 24px;">
+        <div class="toggle-text">
+          <strong>Hide item pricing on client view</strong>
+          <span>Keep your internal cost/profit breakdown, but show the client only descriptions and the final total.</span>
+        </div>
+        <input type="checkbox" id="f-hide-pricing" onchange="sync()" />
+        <div class="toggle-switch"></div>
+      </label>
+
       <div class="field-group" style="margin-top: 24px;">
         <span class="field-label">Notes for client</span>
         <textarea class="field-textarea" id="f-notes" placeholder="Payment terms, thanks, anything else..." oninput="sync()"></textarea>
@@ -1046,12 +1065,12 @@
           </div>
         </div>
         <table class="doc-table">
-          <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+          <thead id="p-thead"><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
           <tbody id="p-lines"></tbody>
         </table>
         <div class="doc-totals">
-          <div class="doc-totals-row"><span>Subtotal</span><span id="p-sub">£0</span></div>
-          <div class="doc-totals-row"><span id="p-taxlabel">VAT (20%)</span><span id="p-vat">£0</span></div>
+          <div class="doc-totals-row" id="p-sub-row"><span>Subtotal</span><span id="p-sub">£0</span></div>
+          <div class="doc-totals-row" id="p-vat-row"><span id="p-taxlabel">VAT (20%)</span><span id="p-vat">£0</span></div>
           <div class="doc-totals-row grand"><span>Total</span><span id="p-grand">£0</span></div>
         </div>
         <div class="doc-footer" id="p-notes"></div>
@@ -1361,6 +1380,7 @@
       taxLabel: r.tax_label || 'VAT',
       lines: Array.isArray(r.lines) ? r.lines : [],
       notes: r.notes || '',
+      hideItemPricing: !!r.hide_item_pricing,
       createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
       acceptedAt: r.accepted_date ? new Date(r.accepted_date).getTime() : null,
       paidAt: r.paid_date ? new Date(r.paid_date).getTime() : null,
@@ -1385,6 +1405,7 @@
       paid_date: d.paidAt ? new Date(d.paidAt).toISOString().slice(0,10) : null,
       lines: d.lines || [],
       notes: d.notes || null,
+      hide_item_pricing: !!d.hideItemPricing,
       currency: d.currency || 'GBP',
       tax_rate: d.tax || 0,
       tax_label: d.taxLabel || 'VAT',
@@ -2241,6 +2262,7 @@
     document.getElementById('f-tax').value = currentDoc.tax;
     document.getElementById('f-taxlabel').value = currentDoc.taxLabel;
     document.getElementById('f-notes').value = currentDoc.notes;
+    document.getElementById('f-hide-pricing').checked = !!currentDoc.hideItemPricing;
     document.getElementById('f-due-label').textContent = currentDoc.type === 'quote' ? 'Valid until' : 'Due date';
 
     // Populate client suggestions
@@ -2293,6 +2315,7 @@
     currentDoc.tax = parseFloat(document.getElementById('f-tax').value) || 0;
     currentDoc.taxLabel = document.getElementById('f-taxlabel').value;
     currentDoc.notes = document.getElementById('f-notes').value;
+    currentDoc.hideItemPricing = document.getElementById('f-hide-pricing').checked;
 
     // Auto-fill email if client matches saved one
     const matchClient = state.clients.find(c => c.name.toLowerCase() === currentDoc.clientName.toLowerCase());
@@ -2329,14 +2352,22 @@
     document.getElementById('p-taxlabel').textContent = taxLabel;
     document.getElementById('p-notes').textContent = currentDoc.notes;
 
-    document.getElementById('p-lines').innerHTML = currentDoc.lines.map(l => `
-      <tr>
-        <td class="desc-cell"><strong>${esc(l.desc) || '—'}</strong></td>
-        <td>${l.qty}</td>
-        <td class="price-cell">${fmt(l.rate, currentDoc.currency)}</td>
-        <td class="price-cell">${fmt((parseFloat(l.qty)||0)*(parseFloat(l.rate)||0), currentDoc.currency)}</td>
-      </tr>
-    `).join('');
+    const hidePricing = !!currentDoc.hideItemPricing;
+    document.getElementById('p-sub-row').style.display = hidePricing ? 'none' : '';
+    document.getElementById('p-vat-row').style.display = hidePricing ? 'none' : '';
+    document.getElementById('p-thead').innerHTML = hidePricing
+      ? '<tr><th>Description</th></tr>'
+      : '<tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr>';
+    document.getElementById('p-lines').innerHTML = hidePricing
+      ? currentDoc.lines.map(l => `<tr><td class="desc-cell"><strong>${esc(l.desc) || '—'}</strong></td></tr>`).join('')
+      : currentDoc.lines.map(l => `
+        <tr>
+          <td class="desc-cell"><strong>${esc(l.desc) || '—'}</strong></td>
+          <td>${l.qty}</td>
+          <td class="price-cell">${fmt(l.rate, currentDoc.currency)}</td>
+          <td class="price-cell">${fmt((parseFloat(l.qty)||0)*(parseFloat(l.rate)||0), currentDoc.currency)}</td>
+        </tr>
+      `).join('');
   }
 
   async function saveDraft() {
@@ -2536,19 +2567,24 @@
           </div>
         </div>
         <table class="doc-table">
-          <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+          <thead>${d.hideItemPricing ? '<tr><th>Description</th></tr>' : '<tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr>'}</thead>
           <tbody>
-            ${d.lines.map(l => `<tr>
-              <td class="desc-cell"><strong>${esc(l.desc)}</strong></td>
-              <td>${l.qty}</td>
-              <td class="price-cell">${fmt(l.rate, d.currency)}</td>
-              <td class="price-cell">${fmt((parseFloat(l.qty)||0)*(parseFloat(l.rate)||0), d.currency)}</td>
-            </tr>`).join('')}
+            ${d.lines.map(l => d.hideItemPricing
+              ? `<tr><td class="desc-cell"><strong>${esc(l.desc)}</strong></td></tr>`
+              : `<tr>
+                  <td class="desc-cell"><strong>${esc(l.desc)}</strong></td>
+                  <td>${l.qty}</td>
+                  <td class="price-cell">${fmt(l.rate, d.currency)}</td>
+                  <td class="price-cell">${fmt((parseFloat(l.qty)||0)*(parseFloat(l.rate)||0), d.currency)}</td>
+                </tr>`
+            ).join('')}
           </tbody>
         </table>
         <div class="doc-totals">
-          <div class="doc-totals-row"><span>Subtotal</span><span>${fmt(t.sub, d.currency)}</span></div>
-          <div class="doc-totals-row"><span>${taxLabel}</span><span>${fmt(t.tax, d.currency)}</span></div>
+          ${d.hideItemPricing ? '' : `
+            <div class="doc-totals-row"><span>Subtotal</span><span>${fmt(t.sub, d.currency)}</span></div>
+            <div class="doc-totals-row"><span>${taxLabel}</span><span>${fmt(t.tax, d.currency)}</span></div>
+          `}
           <div class="doc-totals-row grand"><span>Total</span><span>${fmt(t.grand, d.currency)}</span></div>
         </div>
         ${d.notes ? `<div class="doc-footer">${esc(d.notes)}</div>` : ''}
@@ -2828,9 +2864,11 @@ ${state.settings.business || ''}`;
     y += 5;
     pdf.setTextColor(120); pdf.setFontSize(8);
     pdf.text('DESCRIPTION', margin, y);
-    pdf.text('QTY', margin + contentW * 0.55, y, { align: 'center' });
-    pdf.text('RATE', margin + contentW * 0.75, y, { align: 'right' });
-    pdf.text('AMOUNT', pageW - margin, y, { align: 'right' });
+    if (!d.hideItemPricing) {
+      pdf.text('QTY', margin + contentW * 0.55, y, { align: 'center' });
+      pdf.text('RATE', margin + contentW * 0.75, y, { align: 'right' });
+      pdf.text('AMOUNT', pageW - margin, y, { align: 'right' });
+    }
     y += 3;
     pdf.line(margin, y, pageW - margin, y);
     y += 6;
@@ -2838,14 +2876,17 @@ ${state.settings.business || ''}`;
     pdf.setFontSize(10); pdf.setTextColor(10);
     d.lines.forEach(l => {
       if (y > 240) { pdf.addPage(); y = margin; }
-      const lineAmt = (parseFloat(l.qty)||0) * (parseFloat(l.rate)||0);
-      const descLines = pdf.splitTextToSize(l.desc || '—', contentW * 0.5);
+      const descWidth = d.hideItemPricing ? contentW : contentW * 0.5;
+      const descLines = pdf.splitTextToSize(l.desc || '—', descWidth);
       pdf.setFont('helvetica', 'bold');
       pdf.text(descLines, margin, y);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(String(l.qty), margin + contentW * 0.55, y, { align: 'center' });
-      pdf.text(fmt(l.rate, d.currency), margin + contentW * 0.75, y, { align: 'right' });
-      pdf.text(fmt(lineAmt, d.currency), pageW - margin, y, { align: 'right' });
+      if (!d.hideItemPricing) {
+        const lineAmt = (parseFloat(l.qty)||0) * (parseFloat(l.rate)||0);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(String(l.qty), margin + contentW * 0.55, y, { align: 'center' });
+        pdf.text(fmt(l.rate, d.currency), margin + contentW * 0.75, y, { align: 'right' });
+        pdf.text(fmt(lineAmt, d.currency), pageW - margin, y, { align: 'right' });
+      }
       y += 5 * descLines.length + 2;
       pdf.setDrawColor(220);
       pdf.line(margin, y, pageW - margin, y);
@@ -2855,12 +2896,14 @@ ${state.settings.business || ''}`;
     y += 4;
     const totalsX = pageW - margin - 70;
     pdf.setFontSize(10);
-    pdf.text('Subtotal', totalsX, y);
-    pdf.text(fmt(t.sub, d.currency), pageW - margin, y, { align: 'right' });
-    y += 6;
-    pdf.text(`${d.taxLabel} (${d.tax}%)`, totalsX, y);
-    pdf.text(fmt(t.tax, d.currency), pageW - margin, y, { align: 'right' });
-    y += 4;
+    if (!d.hideItemPricing) {
+      pdf.text('Subtotal', totalsX, y);
+      pdf.text(fmt(t.sub, d.currency), pageW - margin, y, { align: 'right' });
+      y += 6;
+      pdf.text(`${d.taxLabel} (${d.tax}%)`, totalsX, y);
+      pdf.text(fmt(t.tax, d.currency), pageW - margin, y, { align: 'right' });
+      y += 4;
+    }
     pdf.setDrawColor(10); pdf.setLineWidth(0.5);
     pdf.line(totalsX, y, pageW - margin, y);
     y += 7;
@@ -3127,6 +3170,10 @@ ${state.settings.business || ''}`;
       currency: r.currency || 'GBP',
       tax: parseFloat(r.tax_rate) || 0,
       taxLabel: r.tax_label || 'VAT',
+      hideItemPricing: !!r.hide_item_pricing,
+      storedSub: r.subtotal != null ? parseFloat(r.subtotal) : null,
+      storedTax: r.tax != null ? parseFloat(r.tax) : null,
+      storedTotal: r.total != null ? parseFloat(r.total) : null,
       business: r.business_snapshot || {}
     };
   }
@@ -3137,7 +3184,12 @@ ${state.settings.business || ''}`;
     const { data, error } = await sb.rpc('get_shared_doc', { p_public_id: pid });
     if (error || !data || !data.length) { renderPublicNotFound(); return; }
     const d = rpcRowToPublicDoc(data[0]);
-    const t = computeTotals(d);
+    const computed = computeTotals(d);
+    const t = {
+      sub: d.storedSub != null ? d.storedSub : computed.sub,
+      tax: d.storedTax != null ? d.storedTax : computed.tax,
+      grand: d.storedTotal != null ? d.storedTotal : computed.grand
+    };
     const isQuote = d.type === 'quote';
     const taxLabel = `${d.taxLabel} (${d.tax}%)`;
     const paid = d.status === 'paid';
@@ -3210,19 +3262,24 @@ ${state.settings.business || ''}`;
           </div>
         </div>
         <table class="doc-table">
-          <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+          <thead>${d.hideItemPricing ? '<tr><th>Description</th></tr>' : '<tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr>'}</thead>
           <tbody>
-            ${d.lines.map(l => `<tr>
-              <td class="desc-cell"><strong>${esc(l.desc)}</strong></td>
-              <td>${l.qty}</td>
-              <td class="price-cell">${fmt(l.rate, d.currency)}</td>
-              <td class="price-cell">${fmt((parseFloat(l.qty)||0)*(parseFloat(l.rate)||0), d.currency)}</td>
-            </tr>`).join('')}
+            ${d.lines.map(l => d.hideItemPricing
+              ? `<tr><td class="desc-cell"><strong>${esc(l.desc)}</strong></td></tr>`
+              : `<tr>
+                  <td class="desc-cell"><strong>${esc(l.desc)}</strong></td>
+                  <td>${l.qty}</td>
+                  <td class="price-cell">${fmt(l.rate, d.currency)}</td>
+                  <td class="price-cell">${fmt((parseFloat(l.qty)||0)*(parseFloat(l.rate)||0), d.currency)}</td>
+                </tr>`
+            ).join('')}
           </tbody>
         </table>
         <div class="doc-totals">
-          <div class="doc-totals-row"><span>Subtotal</span><span>${fmt(t.sub, d.currency)}</span></div>
-          <div class="doc-totals-row"><span>${taxLabel}</span><span>${fmt(t.tax, d.currency)}</span></div>
+          ${d.hideItemPricing ? '' : `
+            <div class="doc-totals-row"><span>Subtotal</span><span>${fmt(t.sub, d.currency)}</span></div>
+            <div class="doc-totals-row"><span>${taxLabel}</span><span>${fmt(t.tax, d.currency)}</span></div>
+          `}
           <div class="doc-totals-row grand"><span>Total</span><span>${fmt(t.grand, d.currency)}</span></div>
         </div>
         ${d.notes ? `<div class="doc-footer">${esc(d.notes)}</div>` : ''}

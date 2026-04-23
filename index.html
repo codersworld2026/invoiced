@@ -937,11 +937,11 @@
 <section class="screen" id="editor">
   <div class="editor">
     <div class="editor-head">
-      <h2>New <em id="editor-type">quotation</em></h2>
+      <h2><span id="editor-verb">New</span> <em id="editor-type">quotation</em></h2>
       <div class="editor-actions">
         <button class="btn btn-ghost btn-sm" onclick="go('dash')">Cancel</button>
-        <button class="btn btn-ghost btn-sm" onclick="saveDraft()">Save draft</button>
-        <button class="btn btn-primary btn-sm" onclick="sendDoc()">Send to client →</button>
+        <button class="btn btn-ghost btn-sm" id="editor-savedraft-btn" onclick="saveDraft()">Save draft</button>
+        <button class="btn btn-primary btn-sm" id="editor-send-btn" onclick="sendDoc()">Send to client →</button>
       </div>
     </div>
 
@@ -2226,6 +2226,11 @@
   }
 
   function populateEditor() {
+    const isExisting = currentDoc.status && currentDoc.status !== 'draft';
+    const docIsInStore = state.docs.some(d => d.id === currentDoc.id);
+    document.getElementById('editor-verb').textContent = docIsInStore ? 'Edit' : 'New';
+    document.getElementById('editor-send-btn').textContent = isExisting ? 'Resend to client →' : 'Send to client →';
+    document.getElementById('editor-savedraft-btn').textContent = isExisting ? 'Save changes' : 'Save draft';
     document.getElementById('editor-type').textContent = currentDoc.type === 'quote' ? 'quotation' : 'invoice';
     document.getElementById('f-client').value = currentDoc.clientName;
     document.getElementById('f-email').value = currentDoc.clientEmail;
@@ -2336,12 +2341,12 @@
 
   async function saveDraft() {
     if (!currentDoc.clientName) { toast('Client name required'); return; }
-    currentDoc.status = 'draft';
+    if (!currentDoc.status || currentDoc.status === 'draft') currentDoc.status = 'draft';
     try {
       await upsertDoc();
       await maybeAddClient();
       await persistCounters();
-      toast('Draft saved'); go('dash');
+      toast(currentDoc.status === 'draft' ? 'Draft saved' : 'Changes saved'); go('dash');
     } catch {}
   }
   async function sendDoc() {
@@ -2415,7 +2420,8 @@
     if (isQuote && d.status === 'sent') {
       actionBarHTML = `<div class="action-bar info">
         <p>⏱ Quote sent to <strong>${esc(d.clientName)}</strong> — awaiting response</p>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap: wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="editDoc('${d.id}')">Edit quote</button>
           <button class="btn btn-ghost btn-sm" onclick="simulateDecline('${d.id}')">Simulate decline</button>
           <button class="btn btn-accent btn-sm" onclick="acceptQuote('${d.id}')">Simulate accept →</button>
         </div>
@@ -2433,7 +2439,8 @@
     } else if (!isQuote && d.status === 'sent') {
       actionBarHTML = `<div class="action-bar">
         <p>⏱ Invoice sent — awaiting payment</p>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap: wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="editDoc('${d.id}')">Edit invoice</button>
           <button class="btn btn-ghost btn-sm" onclick="sendReminder()">Send reminder</button>
           <button class="btn btn-accent btn-sm" onclick="markPaid('${d.id}')">Mark paid →</button>
         </div>
@@ -2441,7 +2448,8 @@
     } else if (!isQuote && d.status === 'overdue') {
       actionBarHTML = `<div class="action-bar" style="background: #FEE2E2;">
         <p>⚠ Overdue — ${getAge(d)} days past due</p>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap: wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="editDoc('${d.id}')">Edit invoice</button>
           <button class="btn btn-ghost btn-sm" onclick="sendReminder()">Send reminder</button>
           <button class="btn btn-accent btn-sm" onclick="markPaid('${d.id}')">Mark paid →</button>
         </div>
@@ -2458,10 +2466,11 @@
     }
     document.getElementById('detail-action-bar').innerHTML = actionBarHTML;
 
+    const editable = d.status !== 'accepted' && d.status !== 'paid';
     document.getElementById('detail-actions').innerHTML = `
       <button class="btn btn-accent btn-sm" onclick="openShareModal('${d.id}')">✉ Send / Share</button>
       <button class="btn btn-ghost btn-sm" onclick="exportPDF('${d.id}')">↓ PDF</button>
-      ${d.status === 'draft' ? `<button class="btn btn-primary btn-sm" onclick="editDoc('${d.id}')">Edit</button>` : ''}
+      ${editable ? `<button class="btn btn-primary btn-sm" onclick="editDoc('${d.id}')">Edit</button>` : ''}
     `;
 
     const paid = d.status === 'paid';

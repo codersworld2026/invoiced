@@ -96,6 +96,17 @@ CREATE TABLE IF NOT EXISTS public.expenses (
 CREATE INDEX IF NOT EXISTS expenses_user_id_idx ON public.expenses(user_id);
 CREATE INDEX IF NOT EXISTS expenses_doc_id_idx  ON public.expenses(doc_id);
 
+CREATE TABLE IF NOT EXISTS public.line_templates (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  description  text NOT NULL,
+  rate         numeric(14,2) DEFAULT 0,
+  cost         numeric(14,2) DEFAULT 0,
+  created_at   timestamptz DEFAULT now(),
+  updated_at   timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS line_templates_user_id_idx ON public.line_templates(user_id);
+
 CREATE TABLE IF NOT EXISTS public.cashflow (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -136,6 +147,10 @@ DROP TRIGGER IF EXISTS t_expenses_updated ON public.expenses;
 CREATE TRIGGER t_expenses_updated BEFORE UPDATE ON public.expenses
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+DROP TRIGGER IF EXISTS t_line_templates_updated ON public.line_templates;
+CREATE TRIGGER t_line_templates_updated BEFORE UPDATE ON public.line_templates
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 DROP TRIGGER IF EXISTS t_cashflow_updated ON public.cashflow;
 CREATE TRIGGER t_cashflow_updated BEFORE UPDATE ON public.cashflow
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -168,6 +183,7 @@ ALTER TABLE public.clients  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.docs     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cashflow ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.line_templates ENABLE ROW LEVEL SECURITY;
 
 -- =========================================================
 -- 5. POLICIES (owner-only CRUD)
@@ -207,6 +223,12 @@ CREATE POLICY "own expenses all" ON public.expenses
 -- cashflow
 DROP POLICY IF EXISTS "own cashflow all" ON public.cashflow;
 CREATE POLICY "own cashflow all" ON public.cashflow
+  FOR ALL TO authenticated
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- line_templates
+DROP POLICY IF EXISTS "own line_templates all" ON public.line_templates;
+CREATE POLICY "own line_templates all" ON public.line_templates
   FOR ALL TO authenticated
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 

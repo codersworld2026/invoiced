@@ -295,8 +295,45 @@
   .field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
   .field-row-3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 
+  .quick-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .quick-chip {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--paper);
+    border: 1px solid var(--rule); padding: 8px 12px; cursor: pointer;
+    font-family: 'Inter Tight', sans-serif; font-size: 13px; color: var(--ink);
+    border-radius: 999px; transition: all 0.15s; user-select: none;
+  }
+  .quick-chip:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .quick-chip .chip-x {
+    background: transparent; border: 0; font-size: 14px; color: inherit;
+    opacity: 0.6; padding: 0; cursor: pointer; margin-left: 2px; line-height: 1;
+  }
+  .quick-chip .chip-x:hover { opacity: 1; color: var(--accent); }
+  .quick-chip .chip-rate { font-family: 'JetBrains Mono', monospace; font-size: 11px; opacity: 0.7; }
+  .quick-chips-label { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+  .chip-add { background: transparent; border: 1px dashed var(--rule); color: var(--muted); }
+  .chip-add:hover { background: var(--paper); color: var(--ink); border-color: var(--ink); }
+  .line-save-btn { background: transparent; border: 0; cursor: pointer; color: var(--muted); font-size: 14px; padding: 0 4px; }
+  .line-save-btn:hover { color: var(--accent); }
+  .line-save-btn.saved { color: var(--green); }
+
+  .mobile-action-bar { display: none; }
+  @media (max-width: 720px) {
+    .mobile-action-bar {
+      display: flex; gap: 8px; position: sticky; bottom: 0; left: 0; right: 0;
+      background: var(--paper); border-top: 1px solid var(--ink);
+      padding: 10px 12px; z-index: 40; margin: 16px -12px 0;
+    }
+    .mobile-action-bar .btn { flex: 1; padding: 14px 12px; font-size: 11px; }
+    .mobile-action-bar .btn-primary { flex: 1.4; }
+    .field-input, .field-textarea, .field-select { font-size: 16px; padding: 13px 14px; }
+    .line-item input { font-size: 13px; padding: 8px 0; min-height: 36px; }
+    .line-item .del { font-size: 22px; padding: 8px 0; min-width: 28px; }
+    .quick-chip { padding: 10px 14px; font-size: 14px; min-height: 40px; }
+    .btn-sm { padding: 10px 14px; font-size: 11px; }
+  }
+
   .line-items { margin-top: 6px; }
-  .line-item-head, .line-item { display: grid; grid-template-columns: minmax(0, 1fr) 55px 80px 80px 80px 26px; gap: 6px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); min-width: 0; }
+  .line-item-head, .line-item { display: grid; grid-template-columns: minmax(0, 1fr) 55px 80px 80px 80px 26px 26px; gap: 6px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); min-width: 0; }
   .line-item > * { min-width: 0; }
   .line-item-head { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--ink); padding-bottom: 7px; font-weight: 700; }
   .line-item input { background: transparent; border: 0; padding: 5px 0; font-size: 13px; font-family: 'Inter Tight', sans-serif; color: var(--ink); width: 100%; }
@@ -569,7 +606,7 @@
     .doc-preview { padding: 22px; }
     .doc-type { font-size: 26px; }
     .doc-meta { grid-template-columns: 1fr; }
-    .line-item-head, .line-item { grid-template-columns: minmax(0, 1fr) 40px 60px 60px 60px 22px; gap: 3px; }
+    .line-item-head, .line-item { grid-template-columns: minmax(0, 1fr) 40px 60px 60px 60px 22px 22px; gap: 3px; }
     .line-item input { font-size: 12px; }
     .field-row, .field-row-3 { grid-template-columns: 1fr; }
     .stat-value { font-size: 28px; }
@@ -612,7 +649,7 @@
     .logo-preview { width: 110px; height: 110px; }
     .doc-totals { width: 100%; }
     .doc-totals-row.grand span:last-child { font-size: 20px; }
-    .line-item-head, .line-item { grid-template-columns: minmax(0, 1fr) 34px 50px 50px 50px 20px; gap: 2px; font-size: 11px; }
+    .line-item-head, .line-item { grid-template-columns: minmax(0, 1fr) 34px 50px 50px 50px 20px 20px; gap: 2px; font-size: 11px; }
     .line-item input { font-size: 11px; padding: 4px 0; }
     .line-item-head { font-size: 8.5px; }
     .line-item .amt { font-size: 11px; }
@@ -959,6 +996,7 @@
       <div class="field-row">
         <div class="field-group">
           <span class="field-label">Client</span>
+          <div id="client-chips" class="quick-chips"></div>
           <input class="field-input" id="f-client" placeholder="Client name" oninput="sync()" list="client-suggestions" />
           <datalist id="client-suggestions"></datalist>
         </div>
@@ -992,6 +1030,10 @@
 
       <div class="field-group">
         <span class="field-label">Line items <span style="color: var(--muted); text-transform: none; font-weight: 400;">— add material/cost per line to track profit</span></span>
+        <div id="template-chips-row" style="display: none;">
+          <div class="quick-chips-label" style="margin-bottom: 6px;">Saved templates — tap to add</div>
+          <div id="template-chips" class="quick-chips"></div>
+        </div>
         <div class="line-items" id="lines">
           <div class="line-item-head">
             <span>Description</span>
@@ -999,6 +1041,7 @@
             <span style="text-align:right">Rate</span>
             <span style="text-align:right; color: var(--accent);">Cost</span>
             <span style="text-align:right">Amount</span>
+            <span></span>
             <span></span>
           </div>
         </div>
@@ -1076,6 +1119,11 @@
         <div class="doc-footer" id="p-notes"></div>
       </div>
     </div>
+  </div>
+  <div class="mobile-action-bar">
+    <button class="btn btn-ghost btn-sm" onclick="go('dash')">Cancel</button>
+    <button class="btn btn-ghost btn-sm" onclick="saveDraft()">Save</button>
+    <button class="btn btn-primary btn-sm" onclick="sendDoc()">Send →</button>
   </div>
 </section>
 
@@ -1343,6 +1391,7 @@
       docs: [],
       expenses: [],
       cashflow: [],
+      templates: [],
       counters: { quote: 481, invoice: 121 }
     };
   }
@@ -1471,6 +1520,23 @@
       amount: c.amount,
       description: c.desc,
       notes: c.notes || null
+    };
+  }
+  function rowToTemplate(r) {
+    return {
+      id: r.id,
+      desc: r.description || '',
+      rate: parseFloat(r.rate) || 0,
+      cost: parseFloat(r.cost) || 0
+    };
+  }
+  function templateToRow(t) {
+    return {
+      id: t.id,
+      user_id: currentUser.id,
+      description: t.desc,
+      rate: t.rate || 0,
+      cost: t.cost || 0
     };
   }
   function rowToSettings(r) {
@@ -1602,18 +1668,20 @@
 
   // ============ DATA LOAD ============
   async function loadAllData() {
-    const [profileRes, clientsRes, docsRes, expensesRes, cashflowRes] = await Promise.all([
+    const [profileRes, clientsRes, docsRes, expensesRes, cashflowRes, templatesRes] = await Promise.all([
       sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
       sb.from('clients').select('*').order('name'),
       sb.from('docs').select('*').order('created_at', { ascending: false }),
       sb.from('expenses').select('*').order('date', { ascending: false }),
-      sb.from('cashflow').select('*').order('date', { ascending: false })
+      sb.from('cashflow').select('*').order('date', { ascending: false }),
+      sb.from('line_templates').select('*').order('created_at', { ascending: false })
     ]);
     if (profileRes.error) throw profileRes.error;
     if (clientsRes.error) throw clientsRes.error;
     if (docsRes.error) throw docsRes.error;
     if (expensesRes.error) throw expensesRes.error;
     if (cashflowRes.error) throw cashflowRes.error;
+    if (templatesRes.error) throw templatesRes.error;
 
     if (profileRes.data) {
       state.settings = rowToSettings(profileRes.data);
@@ -1632,6 +1700,7 @@
     state.docs = (docsRes.data || []).map(rowToDoc);
     state.expenses = (expensesRes.data || []).map(rowToExpense);
     state.cashflow = (cashflowRes.data || []).map(rowToCashflow);
+    state.templates = (templatesRes.data || []).map(rowToTemplate);
   }
 
   // ============ PERSIST HELPERS ============
@@ -1666,6 +1735,14 @@
   async function deleteCashflowRemote(id) {
     const { error } = await sb.from('cashflow').delete().eq('id', id);
     if (error) { console.error(error); toast('Delete failed: ' + error.message); throw error; }
+  }
+  async function persistTemplate(t) {
+    const { error } = await sb.from('line_templates').upsert(templateToRow(t));
+    if (error) { console.error(error); toast('Template save failed: ' + error.message); throw error; }
+  }
+  async function deleteTemplateRemote(id) {
+    const { error } = await sb.from('line_templates').delete().eq('id', id);
+    if (error) { console.error(error); toast('Template delete failed: ' + error.message); throw error; }
   }
   async function persistSettings() {
     const { error } = await sb.from('profiles').upsert(settingsToRow(state.settings, state.counters));
@@ -2267,6 +2344,8 @@
 
     // Populate client suggestions
     document.getElementById('client-suggestions').innerHTML = state.clients.map(c => `<option value="${esc(c.name)}">`).join('');
+    renderClientChips();
+    renderTemplateChips();
 
     renderLines();
     sync();
@@ -2284,10 +2363,83 @@
         <input style="text-align:right" type="number" value="${l.rate}" min="0" step="0.01" oninput="updateLine(${i},'rate',this.value)" />
         <input style="text-align:right; color: var(--accent);" type="number" value="${l.cost||0}" min="0" step="0.01" placeholder="0" oninput="updateLine(${i},'cost',this.value)" />
         <span class="amt" id="la-${i}">${fmt((parseFloat(l.qty)||0)*(parseFloat(l.rate)||0), currentDoc.currency)}</span>
-        <button class="del" onclick="removeLine(${i})">×</button>
+        <button class="del" onclick="saveLineAsTemplate(${i})" title="Save as template" style="color: var(--muted); font-size: 14px;">☆</button>
+        <button class="del" onclick="removeLine(${i})" title="Remove line">×</button>
       `;
       wrap.appendChild(row);
     });
+  }
+
+  function renderClientChips() {
+    const wrap = document.getElementById('client-chips');
+    if (!wrap) return;
+    if (!state.clients.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = state.clients.slice(0, 12).map(c => `
+      <button type="button" class="quick-chip" onclick="pickClient('${c.id}')">${esc(c.name)}</button>
+    `).join('');
+  }
+
+  function pickClient(id) {
+    const c = state.clients.find(x => x.id === id);
+    if (!c) return;
+    currentDoc.clientName = c.name;
+    currentDoc.clientEmail = c.email || '';
+    document.getElementById('f-client').value = c.name;
+    document.getElementById('f-email').value = c.email || '';
+    sync();
+  }
+
+  function renderTemplateChips() {
+    const row = document.getElementById('template-chips-row');
+    const wrap = document.getElementById('template-chips');
+    if (!row || !wrap) return;
+    if (!state.templates || !state.templates.length) { row.style.display = 'none'; return; }
+    row.style.display = '';
+    wrap.innerHTML = state.templates.map(t => `
+      <span class="quick-chip" onclick="applyTemplate('${t.id}')">
+        <span>${esc(t.desc) || '—'}</span>
+        <span class="chip-rate">${fmt(t.rate, currentDoc ? currentDoc.currency : state.settings.currency)}</span>
+        <button type="button" class="chip-x" onclick="event.stopPropagation(); deleteTemplate('${t.id}')" title="Delete template">×</button>
+      </span>
+    `).join('');
+  }
+
+  function applyTemplate(id) {
+    const t = state.templates.find(x => x.id === id);
+    if (!t) return;
+    const last = currentDoc.lines[currentDoc.lines.length - 1];
+    if (last && !last.desc && !last.rate) {
+      // Replace the empty last line
+      last.desc = t.desc;
+      last.qty = 1;
+      last.rate = t.rate;
+      last.cost = t.cost;
+    } else {
+      currentDoc.lines.push({ desc: t.desc, qty: 1, rate: t.rate, cost: t.cost });
+    }
+    renderLines();
+    sync();
+    toast('Line added');
+  }
+
+  async function saveLineAsTemplate(i) {
+    const l = currentDoc.lines[i];
+    if (!l || !l.desc) { toast('Add a description first'); return; }
+    const existing = state.templates.find(t => t.desc.toLowerCase() === l.desc.toLowerCase() && t.rate === (parseFloat(l.rate) || 0));
+    if (existing) { toast('Already saved as template'); return; }
+    const t = { id: uid(), desc: l.desc, rate: parseFloat(l.rate) || 0, cost: parseFloat(l.cost) || 0 };
+    state.templates.unshift(t);
+    renderTemplateChips();
+    try { await persistTemplate(t); toast('Saved to templates'); }
+    catch { state.templates = state.templates.filter(x => x.id !== t.id); renderTemplateChips(); }
+  }
+
+  async function deleteTemplate(id) {
+    const prev = state.templates;
+    state.templates = state.templates.filter(t => t.id !== id);
+    renderTemplateChips();
+    try { await deleteTemplateRemote(id); toast('Template removed'); }
+    catch { state.templates = prev; renderTemplateChips(); }
   }
 
   function updateLine(i, k, v) {
@@ -3116,14 +3268,15 @@ ${state.settings.business || ''}`;
   async function resetAll() {
     if (!confirm('This wipes ALL your data — clients, docs, expenses. Your account stays active. Sure?')) return;
     try {
-      const [{ error: e1 }, { error: e2 }, { error: e3 }, { error: e4 }] = await Promise.all([
+      const [{ error: e1 }, { error: e2 }, { error: e3 }, { error: e4 }, { error: e5 }] = await Promise.all([
         sb.from('docs').delete().eq('user_id', currentUser.id),
         sb.from('clients').delete().eq('user_id', currentUser.id),
         sb.from('expenses').delete().eq('user_id', currentUser.id),
-        sb.from('cashflow').delete().eq('user_id', currentUser.id)
+        sb.from('cashflow').delete().eq('user_id', currentUser.id),
+        sb.from('line_templates').delete().eq('user_id', currentUser.id)
       ]);
-      if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
-      state.clients = []; state.docs = []; state.expenses = []; state.cashflow = [];
+      if (e1 || e2 || e3 || e4 || e5) throw (e1 || e2 || e3 || e4 || e5);
+      state.clients = []; state.docs = []; state.expenses = []; state.cashflow = []; state.templates = [];
       loadSettings(); renderClients(); renderDash();
       toast('Reset complete'); go('landing');
     } catch (err) {

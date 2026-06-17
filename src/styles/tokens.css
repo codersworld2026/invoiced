@@ -1,0 +1,15 @@
+/* Design tokens — colours used across the app.
+   Fonts (Fraunces, JetBrains Mono, Inter Tight) are loaded in index.html. */
+:root {
+  --ink: #0A0E1A;
+  --ink-2: #151B2C;
+  --paper: #F4F1EA;
+  --paper-2: #ECE7DB;
+  --accent: #FF4D1C;
+  --accent-2: #FFD93D;
+  --green: #00B868;
+  --blue: #3B82F6;
+  --muted: #6B7280;
+  --rule: rgba(10,14,26,0.12);
+  --rule-2: rgba(10,14,26,0.06);
+}

@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { sb } from '../lib/supabase.js';
 import { authService } from '../services/authService.js';
-import { loadProfile, saveCounters, DEFAULT_SETTINGS, DEFAULT_COUNTERS } from '../services/settingsService.js';
-import { listClients, upsertClient } from '../services/clientsService.js';
+import { loadProfile, saveCounters, saveSettings as saveSettingsRemote, DEFAULT_SETTINGS, DEFAULT_COUNTERS } from '../services/settingsService.js';
+import { listClients, upsertClient, deleteClient as deleteClientRemote } from '../services/clientsService.js';
 import { listDocs, listTemplates, upsertDoc, deleteDoc as deleteDocRemote, upsertTemplate, deleteTemplate as deleteTemplateRemote } from '../services/docsService.js';
 import { listExpenses } from '../services/expensesService.js';
 import { listCashflow } from '../services/cashflowService.js';
@@ -289,6 +290,50 @@ export function AppProvider({ children }) {
     catch { setTemplates(prev); }
   }, [templates, toast]);
 
+  // ---- settings + clients + reset ----
+  // Persist a full settings object. Callers handle their own success toast.
+  const persistSettings = useCallback(async (newSettings) => {
+    setSettings(newSettings);
+    await saveSettingsRemote(newSettings, countersRef.current, userRef.current.id);
+  }, []);
+
+  const saveClient = useCallback(async (client) => {
+    setClients((prev) => {
+      const i = prev.findIndex((c) => c.id === client.id);
+      if (i >= 0) { const copy = [...prev]; copy[i] = client; return copy; }
+      return [...prev, client];
+    });
+    try { await upsertClient(client, userRef.current.id); toast('Client saved'); }
+    catch (err) { toast('Client save failed: ' + (err.message || 'error')); }
+  }, [toast]);
+
+  const removeClient = useCallback(async (id) => {
+    if (!window.confirm('Remove this client? Their past documents will stay.')) return;
+    setClients((prev) => prev.filter((c) => c.id !== id));
+    try { await deleteClientRemote(id); toast('Client removed'); }
+    catch (err) { toast('Client delete failed: ' + (err.message || 'error')); }
+  }, [toast]);
+
+  const resetAll = useCallback(async () => {
+    if (!window.confirm('This wipes ALL your data — clients, docs, expenses. Your account stays active. Sure?')) return;
+    const u = userRef.current;
+    try {
+      const results = await Promise.all([
+        sb.from('docs').delete().eq('user_id', u.id),
+        sb.from('clients').delete().eq('user_id', u.id),
+        sb.from('expenses').delete().eq('user_id', u.id),
+        sb.from('cashflow').delete().eq('user_id', u.id),
+        sb.from('line_templates').delete().eq('user_id', u.id),
+      ]);
+      const firstErr = results.find((r) => r.error);
+      if (firstErr) throw firstErr.error;
+      setClients([]); setDocs([]); setExpenses([]); setCashflow([]); setTemplates([]);
+      toast('Reset complete'); navigate('landing');
+    } catch (err) {
+      toast('Reset failed: ' + (err.message || 'unknown error'));
+    }
+  }, [toast, navigate]);
+
   const bootAuthed = useCallback(async (currentUser) => {
     setUser(currentUser);
     setAuthStatus('loading');
@@ -363,6 +408,8 @@ export function AppProvider({ children }) {
     saveTemplate, removeTemplate,
     // sharing
     shareDocId, openShareModal, closeShareModal,
+    // settings + clients
+    persistSettings, saveClient, removeClient, resetAll,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

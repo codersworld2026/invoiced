@@ -4,8 +4,8 @@ import { authService } from '../services/authService.js';
 import { loadProfile, saveCounters, saveSettings as saveSettingsRemote, DEFAULT_SETTINGS, DEFAULT_COUNTERS } from '../services/settingsService.js';
 import { listClients, upsertClient, deleteClient as deleteClientRemote } from '../services/clientsService.js';
 import { listDocs, listTemplates, upsertDoc, deleteDoc as deleteDocRemote, upsertTemplate, deleteTemplate as deleteTemplateRemote } from '../services/docsService.js';
-import { listExpenses } from '../services/expensesService.js';
-import { listCashflow } from '../services/cashflowService.js';
+import { listExpenses, upsertExpense, deleteExpense as deleteExpenseRemote } from '../services/expensesService.js';
+import { listCashflow, upsertCashflow, deleteCashflow as deleteCashflowRemote } from '../services/cashflowService.js';
 import { uid, publicId } from '../lib/ids.js';
 
 // Shared app state — the React replacement for the monolith's global `state`
@@ -27,6 +27,7 @@ export function AppProvider({ children }) {
   const [currentDocId, setCurrentDocId] = useState(null);
   const [editorDoc, setEditorDoc] = useState(null); // working copy for the editor
   const [shareDocId, setShareDocId] = useState(null); // doc shown in the share modal
+  const [dashFilter, setDashFilter] = useState('all'); // dashboard document filter (shared so Outstanding can jump to it)
   const [loadingMsg, setLoadingMsg] = useState('Checking sign-in…');
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -314,6 +315,42 @@ export function AppProvider({ children }) {
     catch (err) { toast('Client delete failed: ' + (err.message || 'error')); }
   }, [toast]);
 
+  // ---- expenses ----
+  const saveExpense = useCallback(async (exp) => {
+    setExpenses((prev) => {
+      const i = prev.findIndex((e) => e.id === exp.id);
+      if (i >= 0) { const copy = [...prev]; copy[i] = exp; return copy; }
+      return [...prev, exp];
+    });
+    try { await upsertExpense(exp, userRef.current.id); toast('Expense saved'); }
+    catch (err) { toast('Expense save failed: ' + (err.message || 'error')); }
+  }, [toast]);
+
+  const removeExpense = useCallback(async (id) => {
+    if (!window.confirm('Delete this expense?')) return;
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
+    try { await deleteExpenseRemote(id); toast('Expense deleted'); }
+    catch (err) { toast('Delete failed: ' + (err.message || 'error')); }
+  }, [toast]);
+
+  // ---- cashflow ----
+  const saveCashflow = useCallback(async (entry) => {
+    setCashflow((prev) => {
+      const i = prev.findIndex((c) => c.id === entry.id);
+      if (i >= 0) { const copy = [...prev]; copy[i] = entry; return copy; }
+      return [...prev, entry];
+    });
+    try { await upsertCashflow(entry, userRef.current.id); toast('Saved'); }
+    catch (err) { toast('Save failed: ' + (err.message || 'error')); }
+  }, [toast]);
+
+  const removeCashflow = useCallback(async (id) => {
+    if (!window.confirm('Delete this adjustment?')) return;
+    setCashflow((prev) => prev.filter((c) => c.id !== id));
+    try { await deleteCashflowRemote(id); toast('Deleted'); }
+    catch (err) { toast('Delete failed: ' + (err.message || 'error')); }
+  }, [toast]);
+
   const resetAll = useCallback(async () => {
     if (!window.confirm('This wipes ALL your data — clients, docs, expenses. Your account stays active. Sure?')) return;
     const u = userRef.current;
@@ -410,6 +447,9 @@ export function AppProvider({ children }) {
     shareDocId, openShareModal, closeShareModal,
     // settings + clients
     persistSettings, saveClient, removeClient, resetAll,
+    // expenses + cashflow + dashboard filter
+    saveExpense, removeExpense, saveCashflow, removeCashflow,
+    dashFilter, setDashFilter,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

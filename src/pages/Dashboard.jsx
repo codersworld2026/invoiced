@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useApp } from '../store/AppContext.jsx';
 import { computeTotals } from '../lib/calculations.js';
 import { fmt0 } from '../lib/formatters.js';
@@ -26,8 +25,7 @@ const FILTERS = [
 ];
 
 export default function Dashboard() {
-  const { settings, docs, navigate, newDoc, openDoc, duplicateDoc, removeDoc } = useApp();
-  const [filter, setFilter] = useState('all');
+  const { settings, docs, navigate, newDoc, openDoc, duplicateDoc, removeDoc, dashFilter: filter, setDashFilter: setFilter } = useApp();
 
   const first = settings.business && settings.business !== 'Your Business'
     ? settings.business.split(' ')[0] + ',' : '';

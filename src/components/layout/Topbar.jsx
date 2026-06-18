@@ -1,3 +1,5 @@
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../store/AppContext.jsx';
 
 // Icon set ported 1:1 from the monolith (Lucide-style strokes).
@@ -11,6 +13,62 @@ const I = {
   clients: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   settings: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
 };
+
+// "New" trigger in the nav pill group. Opens a small menu to pick Quote or
+// Invoice. The menu is portaled to <body> and fixed-positioned so the nav bar's
+// overflow-x scroll can't clip it, and so it doesn't inherit pill-button styling.
+function NewMenu({ newDoc, active }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (btnRef.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onMove = () => setOpen(false); // close on scroll/resize (anchor would drift)
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const menuW = 180;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - menuW - 8));
+      setPos({ top: r.bottom + 6, left });
+    }
+    setOpen((o) => !o);
+  }
+  function choose(type) { setOpen(false); newDoc(type); }
+
+  return (
+    <>
+      <button ref={btnRef} className={active ? 'active' : ''} onClick={toggle} title="New" aria-haspopup="menu" aria-expanded={open}>
+        {I.newdoc}<span>New</span>
+      </button>
+      {open && createPortal(
+        <div className="new-menu" role="menu" ref={menuRef} style={{ top: pos.top, left: pos.left }}>
+          <button role="menuitem" onClick={() => choose('quote')}>+ New Quote</button>
+          <button role="menuitem" onClick={() => choose('invoice')}>+ New Invoice</button>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
 
 export default function Topbar() {
   const { screen, navigate, authStatus, openAuth, signOut, settings, newDoc } = useApp();
@@ -32,7 +90,7 @@ export default function Topbar() {
           <button className={is('outstanding').trim() ? 'active' : ''} onClick={() => navigate('outstanding')} title="Outstanding">{I.outstanding}<span>Outstanding</span></button>
           <button className={is('profit').trim() ? 'active' : ''} onClick={() => navigate('profit')} title="Profit">{I.profit}<span>Profit</span></button>
           <button className={is('cashflow').trim() ? 'active' : ''} onClick={() => navigate('cashflow')} title="Cash flow">{I.cashflow}<span>Cash flow</span></button>
-          <button className={is('editor').trim() ? 'active' : ''} onClick={() => newDoc('quote')} title="New">{I.newdoc}<span>New</span></button>
+          <NewMenu newDoc={newDoc} active={!!is('editor').trim()} />
           <button className={is('clients').trim() ? 'active' : ''} onClick={() => navigate('clients')} title="Clients">{I.clients}<span>Clients</span></button>
         </div>
         <button className={`nav-pill-standalone${is('settings')}`} onClick={() => navigate('settings')} title="Settings">

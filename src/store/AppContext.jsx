@@ -249,7 +249,10 @@ export function AppProvider({ children }) {
       openDoc(quote.linkedInvoiceId); return;
     }
     const updatedQuote = { ...quote };
-    if (updatedQuote.status !== 'accepted') { updatedQuote.status = 'accepted'; updatedQuote.acceptedAt = updatedQuote.acceptedAt || Date.now(); }
+    // Record acceptance (if not already) and mark the quote as 'converted' so it's
+    // visually distinct from an accepted-but-not-yet-invoiced quote.
+    updatedQuote.acceptedAt = updatedQuote.acceptedAt || Date.now();
+    updatedQuote.status = 'converted';
     const next = { ...countersRef.current, invoice: countersRef.current.invoice + 1 };
     const due = new Date(); due.setDate(due.getDate() + 14);
     const invoice = {

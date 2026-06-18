@@ -23,7 +23,7 @@ export default function Detail() {
 
   const t = computeTotals(d);
   const isQuote = d.type === 'quote';
-  const editable = d.status !== 'accepted' && d.status !== 'paid';
+  const editable = !['accepted', 'converted', 'paid'].includes(d.status);
   const business = { name: settings.business, email: settings.email, logo: settings.logo, payment: settings.payment };
   const linkedExp = expenses.filter((e) => e.docId === d.id);
   const linkedExpTotal = linkedExp.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
@@ -47,10 +47,10 @@ export default function Detail() {
         </div>
       );
     }
-    if (isQuote && d.status === 'accepted') {
+    if (isQuote && (d.status === 'accepted' || d.status === 'converted')) {
       return linkedInvoice ? (
         <div className="action-bar success">
-          <p>✓ Accepted {fmtDate(d.acceptedAt)} — invoice <strong>{linkedInvoice.number}</strong> issued</p>
+          <p>✓ {d.status === 'converted' ? 'Converted' : 'Accepted'} {fmtDate(d.acceptedAt)} — invoice <strong>{linkedInvoice.number}</strong> issued</p>
           <button className="btn btn-primary btn-sm" onClick={() => openDoc(linkedInvoice.id)}>View invoice →</button>
         </div>
       ) : (

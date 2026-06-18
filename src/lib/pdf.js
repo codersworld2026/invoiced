@@ -5,11 +5,13 @@ import { computeTotals } from './calculations.js';
 // Generates and downloads an A4 PDF for a quote/invoice.
 // Faithful port of the original exportPDF(); takes the document and the
 // business settings explicitly instead of reading global state.
-// Returns true on success. The caller is responsible for any toast/UI.
-export function exportDocPDF(doc, settings) {
+// `totalsOverride` (optional) lets callers supply server-stored totals — used by
+// the public page, where hidden-pricing docs have lines stripped of qty/rate and
+// so can't be recomputed locally. Returns true on success.
+export function exportDocPDF(doc, settings, totalsOverride) {
   if (!doc) return false;
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-  const t = computeTotals(doc);
+  const t = totalsOverride || computeTotals(doc);
   const isQuote = doc.type === 'quote';
   const pageW = 210, margin = 18;
   const contentW = pageW - margin * 2;

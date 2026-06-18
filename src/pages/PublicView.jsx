@@ -123,10 +123,25 @@ export default function PublicView({ publicId }) {
     actionBar = <div className="public-action-bar success"><p>✓ You accepted this quote on {fmtDate(d.acceptedAt)}. Invoice to follow.</p></div>;
   } else if (isQuote && d.status === 'declined') {
     actionBar = <div className="public-action-bar" style={{ background: '#FEE2E2' }}><p>✕ This quote was declined.</p></div>;
+  } else if (isQuote && d.status === 'converted') {
+    actionBar = <div className="public-action-bar success"><p>✓ This quote was accepted and has been invoiced.</p></div>;
   } else if (!isQuote && d.status !== 'paid') {
     actionBar = <div className="public-action-bar"><p>Invoice due {fmtDate(d.dueDate)} · {fmt(totals.grand, d.currency)}</p></div>;
   } else if (paid) {
     actionBar = <div className="public-action-bar success"><p>✓ Paid in full on {fmtDate(d.paidAt)}</p></div>;
+  }
+
+  // Client-side PDF download. Maps the public business snapshot to the shape the
+  // PDF helper expects, and passes the server-stored totals so a hidden-pricing
+  // doc (whose public lines have no qty/rate) still renders the correct total.
+  async function downloadPDF() {
+    setNotice('');
+    try {
+      const { exportDocPDF } = await import('../lib/pdf.js');
+      exportDocPDF(d, { business: business.name, email: business.email, logo: business.logo, payment: business.payment }, totals);
+    } catch {
+      setNotice('Could not generate the PDF — please try again.');
+    }
   }
 
   return (
@@ -135,7 +150,10 @@ export default function PublicView({ publicId }) {
       {actionBar}
       {notice && <div className="public-action-bar" style={{ background: '#FEE2E2' }}><p>{notice}</p></div>}
       <InvoicePreview doc={d} business={business} totals={totals} />
-      <div style={{ textAlign: 'center', padding: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>
+      <div className="public-download">
+        <button className="btn btn-ghost btn-sm" onClick={downloadPDF}>↓ Download {isQuote ? 'quote' : 'invoice'} PDF</button>
+      </div>
+      <div style={{ textAlign: 'center', padding: '8px 24px 24px', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>
         Powered by invoiced.
       </div>
     </div></div>

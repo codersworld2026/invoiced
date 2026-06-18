@@ -6,9 +6,11 @@ function statusDesc(d) {
   if (d.type === 'quote') {
     if (d.status === 'draft') return 'Not sent yet';
     if (d.status === 'sent') return 'Awaiting response';
-    if (d.status === 'accepted') return 'Accepted · invoice issued';
+    if (d.status === 'accepted') return 'Accepted — ready to invoice';
+    if (d.status === 'converted') return 'Converted to invoice';
     if (d.status === 'declined') return 'Declined';
   } else {
+    if (d.status === 'draft') return 'Not sent yet';
     if (d.status === 'sent') return 'Awaiting payment';
     if (d.status === 'paid') return 'Paid in full';
     if (d.status === 'overdue') return 'Payment overdue';
@@ -21,7 +23,7 @@ const FILTERS = [
   { key: 'quote', label: 'Quotes' },
   { key: 'invoice', label: 'Invoices' },
   { key: 'paid', label: 'Paid' },
-  { key: 'overdue', label: 'Overdue' },
+  { key: 'unpaid', label: 'Unpaid / Draft' },
 ];
 
 export default function Dashboard() {
@@ -54,14 +56,18 @@ export default function Dashboard() {
   if (filter === 'quote') list = list.filter((d) => d.type === 'quote');
   else if (filter === 'invoice') list = list.filter((d) => d.type === 'invoice');
   else if (filter === 'paid') list = list.filter((d) => d.status === 'paid');
-  else if (filter === 'overdue') list = list.filter((d) => d.status === 'overdue');
+  // Unpaid/Draft = anything still needing action: any draft, or an unpaid invoice.
+  else if (filter === 'unpaid') list = list.filter((d) => d.status === 'draft' || (d.type === 'invoice' && (d.status === 'sent' || d.status === 'overdue')));
 
   return (
     <section className="screen active" id="dash">
       <div className="dash">
         <div className="dash-head">
           <h2>Hey {first}<br />here's <em>where you stand.</em></h2>
-          <button className="btn btn-primary" onClick={() => newDoc('quote')}>+ New Quote</button>
+          <div className="dash-head-actions">
+            <button className="btn btn-primary" onClick={() => newDoc('quote')}>+ New Quote</button>
+            <button className="btn btn-accent" onClick={() => newDoc('invoice')}>+ New Invoice</button>
+          </div>
         </div>
 
         <div className="stats">
@@ -107,8 +113,10 @@ export default function Dashboard() {
           {list.length === 0 ? (
             <div className="empty">
               <h4>Nothing here yet</h4>
-              <p>Create your first {filter === 'all' ? 'quote' : filter} to see it listed.</p>
-              <button className="btn btn-primary btn-sm" onClick={() => newDoc('quote')}>+ New Quote</button>
+              <p>Create your first {filter === 'invoice' ? 'invoice' : filter === 'all' ? 'quote' : filter} to see it listed.</p>
+              {filter === 'invoice'
+                ? <button className="btn btn-accent btn-sm" onClick={() => newDoc('invoice')}>+ New Invoice</button>
+                : <button className="btn btn-primary btn-sm" onClick={() => newDoc('quote')}>+ New Quote</button>}
             </div>
           ) : (
             list.map((d) => {
@@ -118,7 +126,10 @@ export default function Dashboard() {
               return (
                 <div className="doc-row" key={d.id} onClick={() => openDoc(d.id)}>
                   <div className="num">{d.number}</div>
-                  <div><div className="client">{d.clientName}</div><div className="desc">{d.project}</div></div>
+                  <div>
+                    <div className="client">{d.clientName}<span className={`type-tag ${d.type}`}>{d.type}</span></div>
+                    <div className="desc">{d.project}</div>
+                  </div>
                   <div className="desc">{statusDesc(d)}</div>
                   <div className="amt">{fmt0(totals.grand, d.currency)}</div>
                   <div className={`status-pill status-${d.status}`}>{d.status}</div>

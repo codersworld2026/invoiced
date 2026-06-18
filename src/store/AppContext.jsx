@@ -405,10 +405,11 @@ export function AppProvider({ children }) {
 
       const res = authService.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          setUser((prev) => {
-            if (!prev || prev.id !== session.user.id) bootAuthed(session.user);
-            return prev;
-          });
+          // Boot only when the signed-in user actually changed (ignore token
+          // refreshes / duplicate events). Use the ref, NOT a setUser updater —
+          // calling bootAuthed inside an updater that returns `prev` left the
+          // store's `user` null after interactive sign-in, breaking every write.
+          if (!userRef.current || userRef.current.id !== session.user.id) bootAuthed(session.user);
         } else if (event === 'SIGNED_OUT') {
           bootSignedOut();
         }

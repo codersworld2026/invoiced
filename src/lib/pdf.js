@@ -15,10 +15,13 @@ export function exportDocPDF(doc, settings) {
   const contentW = pageW - margin * 2;
   let y = margin;
 
-  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(28);
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(28); pdf.setTextColor(10);
   pdf.text(isQuote ? 'Quotation' : 'Invoice', margin, y + 8);
+  // brand accent rule under the title
+  pdf.setDrawColor(255, 77, 28); pdf.setLineWidth(1.4);
+  pdf.line(margin, y + 11.5, margin + 26, y + 11.5);
   pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(120);
-  pdf.text('#' + doc.number, margin, y + 14);
+  pdf.text('#' + doc.number, margin, y + 17);
 
   const logo = settings.logo;
   let brandBottom = y + 15;

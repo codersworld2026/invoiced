@@ -25,10 +25,16 @@ const FILTERS = [
 ];
 
 export default function Dashboard() {
-  const { settings, docs, navigate, newDoc, openDoc, duplicateDoc, removeDoc, dashFilter: filter, setDashFilter: setFilter } = useApp();
+  const { settings, docs, clients, navigate, newDoc, openDoc, duplicateDoc, removeDoc, dashFilter: filter, setDashFilter: setFilter } = useApp();
 
-  const first = settings.business && settings.business !== 'Your Business'
-    ? settings.business.split(' ')[0] + ',' : '';
+  const bizDone = !!(settings.business && settings.business !== 'Your Business');
+  const first = bizDone ? settings.business.split(' ')[0] + ',' : '';
+  const firstRun = docs.length === 0;
+  const steps = [
+    { n: 1, done: bizDone, title: 'Set up your business', desc: 'Add your name, logo and payment details so every document looks like you.', cta: 'Open settings', action: () => navigate('settings') },
+    { n: 2, done: clients.length > 0, title: 'Add your first client', desc: 'Save a client once, then reuse them on every quote and invoice.', cta: 'Add a client', action: () => navigate('clients') },
+    { n: 3, done: false, title: 'Send your first quote', desc: 'Build a quote in under a minute and share a link your client can accept.', cta: '+ New quote', action: () => newDoc('quote') },
+  ];
 
   // ---- stats ----
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
@@ -65,6 +71,29 @@ export default function Dashboard() {
           <div className="stat"><div className="stat-label">Avg pay time</div><div className="stat-value">{avgDays}d</div><div className="stat-sub">{paidInvoices.length} paid invoices</div></div>
         </div>
 
+        {firstRun ? (
+          <div className="onboard">
+            <div className="onboard-head">
+              <h3>Let's get you set up.</h3>
+              <p>Three quick steps to your first paid invoice.</p>
+            </div>
+            {steps.map((s) => (
+              <div className={`onboard-step${s.done ? ' done' : ''}`} key={s.n}>
+                <div className="onboard-step-num">{s.done ? '✓' : s.n}</div>
+                <div className="onboard-step-body">
+                  <h4>{s.title}</h4>
+                  <p>{s.desc}</p>
+                </div>
+                <button
+                  className={`btn btn-sm ${s.done ? 'btn-ghost' : s.n === 3 ? 'btn-accent' : 'btn-primary'}`}
+                  onClick={s.action}
+                >
+                  {s.done ? 'Edit' : s.cta}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="table-wrap">
           <div className="table-head">
             <h3>All documents</h3>
@@ -96,13 +125,14 @@ export default function Dashboard() {
                   <div className="row-date">{dateLabel}</div>
                   <div className="row-actions">
                     <button className="icon-btn" onClick={(e) => { e.stopPropagation(); duplicateDoc(d.id); }} title="Duplicate">⎘</button>
-                    <button className="icon-btn" onClick={(e) => { e.stopPropagation(); removeDoc(d.id); }} title="Delete">✕</button>
+                    <button className="icon-btn icon-btn-danger" onClick={(e) => { e.stopPropagation(); removeDoc(d.id); }} title="Delete">✕</button>
                   </div>
                 </div>
               );
             })
           )}
         </div>
+        )}
       </div>
     </section>
   );

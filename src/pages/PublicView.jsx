@@ -34,6 +34,8 @@ export default function PublicView({ publicId }) {
   const [state, setState] = useState('loading'); // loading | ready | notfound
   const [doc, setDoc] = useState(null);
   const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);        // disables buttons during respond
+  const [confirmDecline, setConfirmDecline] = useState(false);
 
   const load = useCallback(async () => {
     setState('loading');
@@ -46,16 +48,31 @@ export default function PublicView({ publicId }) {
   useEffect(() => { load(); }, [load]);
 
   async function respond(action) {
+    if (busy) return;
     setNotice('');
+    setBusy(true);
     const { data, error } = await respondToSharedDoc(publicId, action);
-    if (error || data !== 'ok') { setNotice(`Could not ${action} — please try again.`); return; }
-    load();
+    if (error || data !== 'ok') {
+      setNotice(`Could not ${action} — please try again.`);
+      setBusy(false);
+      setConfirmDecline(false);
+      return;
+    }
+    await load();
+    setBusy(false);
+    setConfirmDecline(false);
   }
 
   if (state === 'loading') {
     return (
       <div className="public-view"><div className="public-wrap">
-        <div style={{ padding: '60px 24px', textAlign: 'center', color: 'var(--muted)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>Loading…</div>
+        <Banner />
+        <div className="public-skeleton" aria-label="Loading document">
+          <div className="sk-line sk-line-lg" />
+          <div className="sk-line" />
+          <div className="sk-line sk-line-sm" />
+          <div className="sk-block" />
+        </div>
       </div></div>
     );
   }
@@ -85,12 +102,20 @@ export default function PublicView({ publicId }) {
 
   let actionBar = null;
   if (isQuote && (d.status === 'sent' || d.status === 'draft')) {
-    actionBar = (
+    actionBar = confirmDecline ? (
       <div className="public-action-bar">
-        <p>Review the quote below — accept to proceed.</p>
+        <p>Decline this quote? This lets {business.name || 'the sender'} know you won't be proceeding.</p>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => respond('decline')}>Decline</button>
-          <button className="btn btn-accent btn-sm" onClick={() => respond('accept')}>Accept quote →</button>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setConfirmDecline(false)}>Keep reviewing</button>
+          <button className="btn btn-sm public-decline-confirm" disabled={busy} onClick={() => respond('decline')}>{busy ? 'Declining…' : 'Yes, decline'}</button>
+        </div>
+      </div>
+    ) : (
+      <div className="public-action-bar">
+        <p>Review the quote below — <strong>{fmt(totals.grand, d.currency)}</strong>. Accept to proceed.</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setConfirmDecline(true)}>Decline</button>
+          <button className="btn btn-accent btn-sm" disabled={busy} onClick={() => respond('accept')}>{busy ? 'Accepting…' : 'Accept quote →'}</button>
         </div>
       </div>
     );

@@ -6,7 +6,7 @@ import { listClients, upsertClient, deleteClient as deleteClientRemote } from '.
 import { listDocs, listTemplates, upsertDoc, deleteDoc as deleteDocRemote, upsertTemplate, deleteTemplate as deleteTemplateRemote } from '../services/docsService.js';
 import { listExpenses, upsertExpense, deleteExpense as deleteExpenseRemote } from '../services/expensesService.js';
 import { listCashflow, upsertCashflow, deleteCashflow as deleteCashflowRemote } from '../services/cashflowService.js';
-import { uid, publicId } from '../lib/ids.js';
+import { uid, publicId, docNumber } from '../lib/ids.js';
 
 // Shared app state — the React replacement for the monolith's global `state`
 // object plus its routing/auth flags. Pages read/update via useApp().
@@ -101,6 +101,27 @@ export function AppProvider({ children }) {
     setTemplates(tpl);
   }, []);
 
+  // Upsert a doc; if its number collides with the (user_id, number) unique index
+  // (Postgres 23505 — another device/tab minted the same number), pull the latest
+  // counters, renumber and retry once. Returns { doc, counters } where `counters`
+  // is the fresh counter object when a renumber happened, else null.
+  const upsertDocResilient = useCallback(async (doc) => {
+    const u = userRef.current, s = settingsRef.current;
+    try {
+      await upsertDoc(doc, u.id, s);
+      return { doc, counters: null };
+    } catch (err) {
+      if (err?.code !== '23505') throw err;
+      const profile = await loadProfile(u.id);
+      const c = { ...profile.counters };
+      let seq;
+      if (doc.type === 'quote') { c.quote += 1; seq = c.quote; } else { c.invoice += 1; seq = c.invoice; }
+      const renamed = { ...doc, number: docNumber(doc.type, seq) };
+      await upsertDoc(renamed, u.id, s);
+      return { doc: renamed, counters: c };
+    }
+  }, []);
+
   // ---- document actions (shared by Dashboard / Detail / Editor) ----
   const openDoc = useCallback((id) => {
     setCurrentDocId(id);
@@ -126,18 +147,19 @@ export function AppProvider({ children }) {
     copy.createdAt = Date.now();
     copy.acceptedAt = null; copy.paidAt = null; copy.linkedInvoiceId = null;
     const nextCounters = { ...counters };
-    if (copy.type === 'quote') { nextCounters.quote += 1; copy.number = `Q-2026-${String(nextCounters.quote).padStart(4, '0')}`; }
-    else { nextCounters.invoice += 1; copy.number = `INV-2026-${String(nextCounters.invoice).padStart(4, '0')}`; }
+    if (copy.type === 'quote') { nextCounters.quote += 1; copy.number = docNumber('quote', nextCounters.quote); }
+    else { nextCounters.invoice += 1; copy.number = docNumber('invoice', nextCounters.invoice); }
     setDocs((prev) => [copy, ...prev]);
     setCounters(nextCounters);
     try {
-      await upsertDoc(copy, user.id, settings);
-      await saveCounters(nextCounters, user.id);
-      toast('Duplicated as draft');
+      const { doc: saved, counters: bumped } = await upsertDocResilient(copy);
+      if (bumped) { setCounters(bumped); setDocs((prev) => prev.map((d) => (d.id === saved.id ? saved : d))); }
+      await saveCounters(bumped || nextCounters, user.id);
+      toast('Duplicated as draft' + (bumped ? ' (' + saved.number + ')' : ''));
     } catch (err) {
       toast('Duplicate failed: ' + (err.message || 'error'));
     }
-  }, [docs, user, counters, settings, toast]);
+  }, [docs, user, counters, settings, toast, upsertDocResilient]);
 
   // ---- editor lifecycle ----
   // Start a new document (increments the in-memory counter, like the monolith;
@@ -147,8 +169,8 @@ export function AppProvider({ children }) {
     const due = new Date(); due.setDate(due.getDate() + 14);
     const next = { ...countersRef.current };
     let number;
-    if (type === 'quote') { next.quote += 1; number = `Q-2026-${String(next.quote).padStart(4, '0')}`; }
-    else { next.invoice += 1; number = `INV-2026-${String(next.invoice).padStart(4, '0')}`; }
+    if (type === 'quote') { next.quote += 1; number = docNumber('quote', next.quote); }
+    else { next.invoice += 1; number = docNumber('invoice', next.invoice); }
     setCounters(next);
     const s = settingsRef.current;
     setEditorDoc({
@@ -182,18 +204,24 @@ export function AppProvider({ children }) {
       if (i >= 0) { const copy = [...prev]; copy[i] = doc; return copy; }
       return [doc, ...prev];
     });
-    await upsertDoc(doc, u.id, settingsRef.current);
+    const { doc: finalDoc, counters: bumped } = await upsertDocResilient(doc);
+    if (bumped) {
+      setCounters(bumped);
+      setDocs((prev) => prev.map((d) => (d.id === finalDoc.id ? finalDoc : d)));
+      toast('That number was just used elsewhere — saved as ' + finalDoc.number);
+    }
     // add client if it's a new name
-    if (doc.clientName) {
-      const exists = clients.some((c) => c.name.toLowerCase() === doc.clientName.toLowerCase());
+    if (finalDoc.clientName) {
+      const exists = clients.some((c) => c.name.toLowerCase() === finalDoc.clientName.toLowerCase());
       if (!exists) {
-        const client = { id: uid(), name: doc.clientName, email: doc.clientEmail, address: '' };
+        const client = { id: uid(), name: finalDoc.clientName, email: finalDoc.clientEmail, address: '' };
         setClients((prev) => [...prev, client]);
         try { await upsertClient(client, u.id); } catch (e) { console.error(e); }
       }
     }
-    try { await saveCounters(countersRef.current, u.id); } catch (e) { console.error(e); }
-  }, [clients]);
+    try { await saveCounters(bumped || countersRef.current, u.id); } catch (e) { console.error(e); }
+    return finalDoc;
+  }, [clients, toast, upsertDocResilient]);
 
   const markPaid = useCallback(async (id) => {
     const doc = docsRef.current.find((x) => x.id === id); if (!doc) return;
@@ -227,7 +255,7 @@ export function AppProvider({ children }) {
     const invoice = {
       ...JSON.parse(JSON.stringify(updatedQuote)),
       id: uid(), publicId: publicId(), type: 'invoice', status: 'sent',
-      number: `INV-2026-${String(next.invoice).padStart(4, '0')}`,
+      number: docNumber('invoice', next.invoice),
       createdAt: Date.now(), acceptedAt: null, paidAt: null, linkedInvoiceId: null,
       issueDate: new Date().toISOString().slice(0, 10), dueDate: due.toISOString().slice(0, 10),
     };
@@ -236,13 +264,14 @@ export function AppProvider({ children }) {
     setCounters(next);
     try {
       const u = userRef.current, s = settingsRef.current;
-      await upsertDoc(invoice, u.id, s);
+      const { doc: savedInvoice, counters: bumped } = await upsertDocResilient(invoice);
+      if (bumped) { setCounters(bumped); setDocs((prev) => prev.map((d) => (d.id === savedInvoice.id ? savedInvoice : d))); }
       await upsertDoc(updatedQuote, u.id, s);
-      await saveCounters(next, u.id);
-      toast('Invoice ' + invoice.number + ' created');
-      openDoc(invoice.id);
+      await saveCounters(bumped || next, u.id);
+      toast('Invoice ' + savedInvoice.number + ' created');
+      openDoc(savedInvoice.id);
     } catch (err) { toast('Convert failed: ' + (err.message || 'error')); }
-  }, [openDoc, toast]);
+  }, [openDoc, toast, upsertDocResilient]);
 
   // ---- sharing ----
   // Promote a draft to 'sent' + ensure a publicId so the share link resolves

@@ -16,3 +16,10 @@ export function publicId() {
   crypto.getRandomValues(buf);
   return Array.from(buf, (b) => alphabet[b % alphabet.length]).join('');
 }
+
+// Document number like Q-2026-0007 / INV-2026-0007, using the current year so
+// numbers don't get stuck on a hardcoded year as the calendar rolls over.
+export function docNumber(type, seq) {
+  const prefix = type === 'quote' ? 'Q' : 'INV';
+  return `${prefix}-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
+}

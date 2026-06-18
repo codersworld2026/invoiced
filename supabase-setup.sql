@@ -81,6 +81,10 @@ ALTER TABLE public.docs ADD COLUMN IF NOT EXISTS hide_item_pricing boolean DEFAU
 CREATE INDEX IF NOT EXISTS docs_user_id_idx   ON public.docs(user_id);
 CREATE INDEX IF NOT EXISTS docs_client_id_idx ON public.docs(client_id);
 CREATE INDEX IF NOT EXISTS docs_public_id_idx ON public.docs(public_id) WHERE public_id IS NOT NULL;
+-- One document number per user — prevents two devices/tabs minting the same
+-- Q-2026-0006. (If creation errors with a duplicate-key violation, you have
+-- existing duplicates to resolve first.) The app catches 23505 and retries.
+CREATE UNIQUE INDEX IF NOT EXISTS docs_user_number_uniq ON public.docs(user_id, number);
 
 CREATE TABLE IF NOT EXISTS public.expenses (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -283,7 +287,15 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
          END AS lines,
          notes, currency, tax_rate, tax_label,
          subtotal, tax, total, COALESCE(hide_item_pricing, false) AS hide_item_pricing,
-         business_snapshot
+         -- Only expose the business fields the public page renders. Phone, address
+         -- and tax_id are stripped here so older docs (whose stored snapshot still
+         -- holds them) never leak via the share link. (data minimisation)
+         jsonb_strip_nulls(jsonb_build_object(
+           'name',    business_snapshot->>'name',
+           'email',   business_snapshot->>'email',
+           'logo',    business_snapshot->>'logo',
+           'payment', business_snapshot->>'payment'
+         )) AS business_snapshot
   FROM public.docs
   WHERE public_id = p_public_id
     AND status <> 'draft'

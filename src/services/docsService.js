@@ -52,12 +52,12 @@ export function docToRow(d, userId, settings) {
     subtotal: totals.sub,
     tax: totals.tax,
     total: totals.grand,
+    // Only snapshot what the public share page actually renders. Phone, address
+    // and tax_id are deliberately excluded so they're never exposed to anyone
+    // holding a share link (data minimisation — see get_shared_doc projection).
     business_snapshot: {
       name: settings.business,
       email: settings.email,
-      phone: settings.phone,
-      address: settings.address,
-      tax_id: settings.taxId,
       logo: settings.logo,
       payment: settings.payment,
     },
